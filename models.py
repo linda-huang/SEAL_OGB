@@ -12,6 +12,45 @@ from torch_geometric.nn import (GCNConv, SAGEConv, GINConv,
                                 global_sort_pool, global_add_pool, global_mean_pool)
 import pdb
 
+def global_random_pool(x, batch, k):
+    r"""The global pooling operator from the `"An End-to-End Deep Learning
+    Architecture for Graph Classification"
+    <https://www.cse.wustl.edu/~muhan/papers/AAAI_2018_DGCNN.pdf>`_ paper,
+    where node features are sorted in descending order based on their last
+    feature channel. The first :math:`k` nodes form the output of the layer.
+    Args:
+        x (Tensor): Node feature matrix
+            :math:`\mathbf{X} \in \mathbb{R}^{N \times F}`.
+        batch (LongTensor): Batch vector :math:`\mathbf{b} \in {\{ 0, \ldots,
+            B-1\}}^N`, which assigns each node to a specific example.
+        k (int): The number of nodes to hold for each graph.
+    :rtype: :class:`Tensor`
+    
+    let's change this to random pooling!
+    """
+    fill_value = x.min().item() - 1
+    batch_x, _ = to_dense_batch(x, batch, fill_value)
+    B, N, D = batch_x.size()
+
+#     _, perm = batch_x[:, :, -1].sort(dim=-1, descending=True)
+    perm = torch.stack([torch.randperm(N) for i in range(B)])
+    arange = torch.arange(B, dtype=torch.long, device=perm.device) * N
+    perm = perm + arange.view(-1, 1)
+
+    batch_x = batch_x.view(B * N, D)
+    batch_x = batch_x[perm]
+    batch_x = batch_x.view(B, N, D)
+
+    if N >= k:
+        batch_x = batch_x[:, :k].contiguous()
+    else:
+        expand_batch_x = batch_x.new_full((B, k - N, D), fill_value)
+        batch_x = torch.cat([batch_x, expand_batch_x], dim=1)
+
+    batch_x[batch_x == fill_value] = 0
+    x = batch_x.view(B, k * D)
+
+    return x
 
 class GCN(torch.nn.Module):
     def __init__(self, hidden_channels, num_layers, max_z, train_dataset, 
@@ -137,7 +176,7 @@ class SAGE(torch.nn.Module):
 class DGCNN(torch.nn.Module):
     def __init__(self, hidden_channels, num_layers, max_z, k=0.6, train_dataset=None, 
                  dynamic_train=False, GNN=GCNConv, use_feature=False, 
-                 node_embedding=None):
+                 node_embedding=None, random_pool=False):
         super(DGCNN, self).__init__()
 
         self.use_feature = use_feature
@@ -183,6 +222,7 @@ class DGCNN(torch.nn.Module):
         dense_dim = (dense_dim - conv1d_kws[1] + 1) * conv1d_channels[1]
         self.lin1 = Linear(dense_dim, 128)
         self.lin2 = Linear(128, 1)
+        self.random_pool = random_pool
 
     def forward(self, z, edge_index, batch, x=None, edge_weight=None, node_id=None):
         z_emb = self.z_embedding(z)
@@ -202,7 +242,10 @@ class DGCNN(torch.nn.Module):
         x = torch.cat(xs[1:], dim=-1)
 
         # Global pooling.
-        x = global_sort_pool(x, batch, self.k)
+        if self.random_pool: 
+            x = global_random_pool(x, batch, self.k)
+        else: 
+            x = global_sort_pool(x, batch, self.k)
         x = x.unsqueeze(1)  # [num_graphs, 1, k * hidden]
         x = F.relu(self.conv1(x))
         x = self.maxpool1d(x)

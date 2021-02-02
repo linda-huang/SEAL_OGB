@@ -2,9 +2,10 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+
 import argparse
-import datetime
 import time
+import datetime
 import os, sys
 import os.path as osp
 from shutil import copy
@@ -33,6 +34,7 @@ warnings.simplefilter('ignore', SparseEfficiencyWarning)
 
 from utils import *
 from models import *
+
 
 
 class SEALDataset(InMemoryDataset):
@@ -360,6 +362,7 @@ parser.add_argument('--test_multiple_models', action='store_true',
                     help="test multiple models together")
 parser.add_argument('--use_heuristic', type=str, default=None, 
                     help="test a link prediction heuristic (CN or AA)")
+parser.add_argument('--random_pool', action='store_true')
 args = parser.parse_args()
 
 args.run_time = str(datetime.datetime.now())
@@ -580,7 +583,7 @@ for run in range(args.runs):
     if args.model == 'DGCNN':
         model = DGCNN(args.hidden_channels, args.num_layers, max_z, args.sortpool_k, 
                       train_dataset, args.dynamic_train, use_feature=args.use_feature, 
-                      node_embedding=emb).to(device)
+                      node_embedding=emb, random_pool=args.random_pool).to(device)
     elif args.model == 'SAGE':
         model = SAGE(args.hidden_channels, args.num_layers, max_z, train_dataset,  
                      args.use_feature, node_embedding=emb).to(device)
