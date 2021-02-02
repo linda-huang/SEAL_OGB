@@ -641,15 +641,21 @@ for run in range(args.runs):
         Results = test_multiple_models(models)
         for i, path in enumerate(model_paths):
             print(path)
+            with open(log_file, 'a') as f:
+                print(path, file=f)
             results = Results[i]
             for key, result in results.items():
                 loggers[key].add_result(run, result)
             for key, result in results.items():
                 valid_res, test_res = result
+                to_print = (f'Run: {run + 1:02d}, ' +
+                            f'Valid: {100 * valid_res:.2f}%, ' +
+                            f'Test: {100 * test_res:.2f}%')
                 print(key)
-                print(f'Run: {run + 1:02d}, '
-                      f'Valid: {100 * valid_res:.2f}%, '
-                      f'Test: {100 * test_res:.2f}%')
+                print(to_print)
+                with open(log_file, 'a') as f:
+                    print(key, file=f)
+                    print(to_print, file=f)
         pdb.set_trace()
         exit()
     print('obtaining edges')
@@ -701,6 +707,9 @@ for run in range(args.runs):
 
                 for key, result in results.items():
                     valid_res, test_res = result
+                    to_print = (f'Run: {run + 1:02d}, Epoch: {epoch:02d}, ' +
+                                f'Loss: {loss:.4f}, Valid: {100 * valid_res:.2f}%, ' +
+                                f'Test: {100 * test_res:.2f}%')
                     print(key)
                     print(f'Run: {run + 1:02d}, '
                           f'Epoch: {epoch:02d}, '
@@ -715,6 +724,7 @@ for run in range(args.runs):
     f.close()
     
 #     torch.save(min_model.state_dict(), )
+
     for key in loggers.keys():
         print(key)
         loggers[key].print_statistics(run)
